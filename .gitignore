@@ -1,0 +1,11 @@
+# Foundry
+out/
+cache/
+broadcast/
+
+# Reference solution stays local: publishing it spoils the challenge
+solution/
+
+# Env / OS
+.env
+.DS_Store
