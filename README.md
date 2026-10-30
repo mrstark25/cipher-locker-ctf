@@ -1,43 +1,84 @@
-# CipherLocker — Smart Contract CTF (Moderate)
+# CipherLocker — Smart Contract CTF
 
 > "Nothing on-chain is private. Not even the stuff that isn't in storage."
 
-## Briefing
-A vault engineer split the master password into **three fragments** and hid each
-in a different "private" place inside `CipherLocker`. You have **3 attempts**.
-A wrong guess doesn't revert: it burns an attempt. Three misses and the locker
-bricks permanently.
+| Difficulty | Focus | Est. time |
+|---|---|---|
+| Intermediate | Sensitive on-chain data · EVM storage layout · bytecode | 30–90 min |
 
-**Win condition:** `locked == false` and `owner == player`.
+A vault engineer split the master password into **three fragments** and hid
+each one in a different "private" place inside `CipherLocker`. A wrong guess
+doesn't revert: it burns an attempt. Three misses and the locker bricks forever.
 
-| | |
-|---|---|
-| Difficulty | Moderate (Ethernaut "Vault" → next level) |
-| Category | Sensitive on-chain data / EVM storage layout |
-| Est. time | 30–90 min |
-| Tools | Foundry (`vm.load`, `address.code`) or `cast storage` / `cast code` |
+## Goal
+- Unlock the locker (`locked == false`).
+- Become the owner of the contract (`owner == player`).
 
-## Setup
+## Your Task
+Read [`src/CipherLocker.sol`](src/CipherLocker.sol), then complete
+[`script/Exploit.s.sol`](script/Exploit.s.sol).
+
+```solidity
+function run() external {
+    CipherLocker locker = CipherLocker(vm.envAddress("TARGET"));
+
+    vm.startBroadcast(PLAYER_PRIVATE_KEY);
+
+    // ════════════ YOUR EXPLOIT HERE ════════════
+
+    // ═══════════════════════════════════════════
+
+    vm.stopBroadcast();
+}
+```
+
+## Starting Facts
+- Owner: the deployer (the vault engineer)
+- `locked`: `true`
+- Attempts used: `0` of `3`
+- Player balance: 1 ether
+- Player: `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` (public Anvil dev account #1)
+
+## Hints (0/5)
+<details><summary>Hint 1 · CipherLocker.sol</summary>Two variables share slot 1. Which one sits in the low-order bytes?</details>
+<details><summary>Hint 2 · CipherLocker.sol</summary>Dynamic array data lives at <code>keccak256(slot)</code>. How many <code>bytes8</code> fit in one 32-byte slot?</details>
+<details><summary>Hint 3 · CipherLocker.sol</summary><code>immutable</code> variables are not in storage. Where do they go after deployment?</details>
+<details><summary>Hint 4 · Exploit.s.sol</summary>You can read <code>passwordHash</code>. That means you can test candidates for free before spending an attempt.</details>
+<details><summary>Hint 5 · Exploit.s.sol</summary>Immutables are inlined as a 32-byte <code>PUSH32</code> (opcode <code>0x7f</code>); a <code>bytesN</code> is left-aligned.</details>
+
+## How this CTF works
 Requires [Foundry](https://book.getfoundry.sh/getting-started/installation).
+
 ```bash
 git clone --recursive https://github.com/mrstark25/cipher-locker-ctf.git
 cd cipher-locker-ctf
 # already cloned without --recursive? run: git submodule update --init
+```
+
+**Verify your solution.** The verifier in `test/CipherLocker.t.sol` deploys a
+fresh target with new randomness, runs your `Exploit.s.sol`, then asserts the
+goal. It fails until you solve the challenge.
+```bash
 forge test --match-contract CipherLockerChallenge -vv
 ```
-Write your exploit in `test/CipherLocker.t.sol` between the markers. The test
-fails until you solve it. Rules: don't edit `src/` or `setUp()`, and don't use
-cheatcodes that write state (`vm.store`, `vm.etch`, `vm.deal`, extra `vm.prank`).
-Reading state with `vm.load` and `address.code` is allowed.
 
-## Hints (reveal one at a time)
-<details><summary>Hint 1</summary>Two variables share slot 1. Which one sits in the low-order bytes?</details>
-<details><summary>Hint 2</summary>Dynamic array data lives at <code>keccak256(slot)</code>. How many <code>bytes8</code> fit in one 32-byte slot?</details>
-<details><summary>Hint 3</summary><code>immutable</code> variables are not in storage. Where do they go after deployment?</details>
-<details><summary>Hint 4</summary>You can read <code>passwordHash</code>. That means you can test candidates for free before spending an attempt.</details>
-<details><summary>Hint 5</summary>Immutables are inlined as a 32-byte <code>PUSH32</code> (opcode <code>0x7f</code>); a <code>bytesN</code> is left-aligned.</details>
+**Play against a local chain (optional).**
+```bash
+anvil                                                    # terminal 1
+forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
+TARGET=<deployed address> forge script script/Exploit.s.sol \
+  --rpc-url http://127.0.0.1:8545 --broadcast
+```
+You can also poke the deployed contract with `cast storage` and `cast code`.
 
-## What players learn
+**Rules**
+- Edit only `script/Exploit.s.sol`. Leave `src/` and `test/` as they are.
+- Reading state is allowed (`vm.load`, `address.code`, `cast storage`, `cast code`).
+- Don't use cheatcodes that write state (`vm.store`, `vm.etch`, `vm.deal`, `vm.prank`).
+
+The keys in `script/` are Anvil's public dev keys. Never send real funds to them.
+
+## What you'll learn
 1. Packed storage slots and byte ordering (`bytes16` + `uint128` in one slot)
 2. Dynamic array slot math and sub-slot packing
 3. `constant` vs `immutable` vs storage, and why immutables are in runtime bytecode
